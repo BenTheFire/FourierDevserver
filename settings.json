@@ -1,0 +1,11 @@
+{
+  "refresh_interval": 10,
+  "network_refresh_interval": 20,
+  "kubernetes_refresh_interval": 30,
+  "docker_refresh_interval": 30,
+  "show_emulated_data": true,
+  "enable_alerts": true,
+  "enable_network_checks": true,
+  "enable_kubernetes_checks": true,
+  "enable_docker_checks": true
+}

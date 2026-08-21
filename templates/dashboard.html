@@ -3,98 +3,797 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Studio Log Console</title>
+    <title>Monitoring Dashboard</title>
     <style>
-        body { font-family: monospace; background: #121212; color: #e0e0e0; padding: 20px; }
-        .row { display:flex; gap:16px; align-items:flex-start }
-        .card { background:#0f1113; padding:12px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.6) }
-        table { width:100%; border-collapse: collapse; margin-top: 12px; }
-        th, td { text-align:left; padding:8px; border-bottom:1px solid #333; }
-        .CRITICAL, .ERROR { color:#ff5555; font-weight:bold; }
-        .WARNING { color:#ffb86c; }
-        .INFO { color:#8be9fd; }
-        .metric { font-size:28px; font-weight:700 }
-        .muted { color:#9aa0a6; font-size:13px }
+        :root {
+            --bg: #0b1020;
+            --bg-alt: #121a2b;
+            --panel: #141d2d;
+            --panel-soft: #1a2438;
+            --border: #2b3a52;
+            --text: #e5edf9;
+            --muted: #9aa9bf;
+            --accent: #68a0ff;
+            --accent-strong: #4f8cff;
+            --warning: #ffb454;
+            --danger: #ff6b6b;
+            --ok: #6fe7b1;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; }
+        body {
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background: linear-gradient(180deg, var(--bg) 0%, #0e1628 100%);
+            color: var(--text);
+        }
+        .app-shell {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            background: rgba(10, 17, 28, 0.96);
+            border-right: 1px solid var(--border);
+            padding: 24px 18px;
+            flex-shrink: 0;
+        }
+        .brand {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 22px;
+            padding: 10px 12px;
+            color: #dfeaff;
+        }
+        .menu-list { display: flex; flex-direction: column; gap: 8px; }
+        .menu-item {
+            width: 100%;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text);
+            text-align: left;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 0.98rem;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+        .menu-item:hover:not(:disabled) {
+            background: rgba(104, 160, 255, 0.12);
+            border-color: rgba(104, 160, 255, 0.35);
+        }
+        .menu-item.active {
+            background: linear-gradient(90deg, rgba(79, 140, 255, 0.22), rgba(79, 140, 255, 0.06));
+            border-color: rgba(104, 160, 255, 0.5);
+            color: #edf5ff;
+        }
+        .menu-item:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .main {
+            flex: 1;
+            padding: 24px;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .topbar h1 {
+            margin: 0;
+            font-size: clamp(1.8rem, 2vw, 2.5rem);
+        }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+
+        .panel {
+            display: none;
+            background: rgba(20, 29, 45, 0.94);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+            padding: 18px;
+        }
+        .panel.active { display: block; }
+        .panel h3 { margin-top: 0; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .stat-card, .card {
+            background: var(--panel-soft);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .stat-card .label {
+            color: var(--muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .stat-card .value {
+            font-size: clamp(1.6rem, 2vw, 2.3rem);
+            font-weight: 700;
+            margin-top: 10px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            margin-top: 18px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+        .CRITICAL, .ERROR { color: var(--danger); font-weight: 700; }
+        .WARNING { color: var(--warning); }
+        .INFO { color: #7ad7ff; }
+
+.placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 1.08rem;
+        }
+
+        .warning-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 180, 84, 0.10);
+            border: 1px solid rgba(255, 180, 84, 0.38);
+            color: #ffd9a0;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin: 0 0 16px;
+        }
+        .warning-box strong {
+            color: #ffe2ae;
+        }
+
+        .network-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin: 16px 0 20px;
+        }
+        .network-card {
+            background: var(--panel-soft);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .network-card .label {
+            color: var(--muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .network-card .value {
+            font-size: clamp(1.3rem, 2vw, 2rem);
+            font-weight: 700;
+            margin-top: 10px;
+        }
+        .network-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .network-form input {
+            width: 100%;
+            background: rgba(11, 16, 32, 0.75);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            padding: 12px 14px;
+            font-size: 0.95rem;
+        }
+        .network-form button, .ping-btn, .delete-btn {
+            border: 0;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+        .network-form button {
+            background: linear-gradient(135deg, var(--accent-strong), #77a8ff);
+            color: white;
+            padding: 12px 18px;
+        }
+        .ping-btn {
+            background: rgba(104, 160, 255, 0.12);
+            color: var(--text);
+            border: 1px solid rgba(104, 160, 255, 0.4);
+            padding: 8px 10px;
+        }
+        .delete-btn {
+            background: rgba(255, 107, 107, 0.12);
+            color: #ffb6b6;
+            border: 1px solid rgba(255, 107, 107, 0.35);
+            padding: 8px 10px;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            background: rgba(11, 16, 32, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            letter-spacing: 0.02em;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            background: var(--warning);
+            box-shadow: 0 0 12px rgba(255, 180, 84, 0.7);
+        }
+        .status-dot.up { background: var(--ok); box-shadow: 0 0 12px rgba(111, 231, 177, 0.8); }
+        .status-dot.down { background: var(--danger); box-shadow: 0 0 12px rgba(255, 107, 107, 0.8); }
+
+        @media (max-width: 900px) {
+            .app-shell { flex-direction: column; }
+            .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+            .menu-list { flex-direction: row; flex-wrap: wrap; }
+            .menu-item { width: auto; flex: 1 1 150px; }
+            .main { padding: 16px; }
+        }
     </style>
 </head>
 <body>
-    <h2>Central Studio Logs</h2>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">Monitoring</div>
+            <nav class="menu-list" aria-label="Sidebar navigation">
+                <button type="button" class="menu-item active" data-menu="logs">Logs</button>
+                <button type="button" class="menu-item" data-menu="resource">Resource monitoring</button>
+                <button type="button" class="menu-item" data-menu="network">Network monitoring</button>
+                <button type="button" class="menu-item" data-menu="kubernetes">Kubernetes</button>
+                <button type="button" class="menu-item" data-menu="processes">Processes</button>
+                <button type="button" class="menu-item" data-menu="docker">Docker</button>
+                <button type="button" class="menu-item" data-menu="settings">Settings</button>
+            </nav>
+        </aside>
 
-    <div class="row">
-        <div class="card" style="width:320px">
-            <h4>Host Resource Usage</h4>
-            <div>
-                <div class="muted">Current CPU</div>
-                <div id="cpu_current" class="metric">-</div>
-                <div class="muted">5-min avg CPU</div>
-                <div id="cpu_5min" class="metric">-</div>
-
-                <div style="height:12px"></div>
-                <div class="muted">Current Memory</div>
-                <div id="mem_current" class="metric">-</div>
-                <div class="muted">5-min avg Memory</div>
-                <div id="mem_5min" class="metric">-</div>
-
-                <div style="height:12px"></div>
-                <div class="muted">Top Processes (current)</div>
-                <div id="procs_current">
-                    <table style="width:100%; font-size:13px" id="procs_current_table"><thead><tr><th>PID</th><th>Name</th><th>CPU</th><th>Mem</th></tr></thead><tbody></tbody></table>
-                </div>
-
-                <div style="height:12px"></div>
-                <div class="muted">Top Processes (5-min avg)</div>
-                <div id="procs_5min">
-                    <table style="width:100%; font-size:13px" id="procs_5min_table"><thead><tr><th>PID</th><th>Name</th><th>CPU</th><th>Mem</th></tr></thead><tbody></tbody></table>
-                </div>
-
-                <div style="height:12px"></div>
-                <div class="muted">Last updated</div>
-                <div id="last_updated" class="muted">-</div>
+        <main class="main">
+            <div class="topbar">
+                <h1>Operations Dashboard</h1>
+                <div id="last_updated" class="muted">Last updated: -</div>
             </div>
-        </div>
 
-        <div class="card" style="flex:1">
-            <h4>Recent Logs</h4>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Time (UTC)</th>
-                        <th>Service</th>
-                        <th>Level</th>
-                        <th>Message</th>
-                    </tr>
-                </thead>
-                <tbody id="logs_body">
-                    {% for log in logs %}
-                    <tr class="{{ log.level }}">
-                        <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                        <td>{{ log.service_name }}</td>
-                        <td>{{ log.level }}</td>
-                        <td>{{ log.message }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+            <section class="panel active" id="panel-logs">
+                <h3>Logs</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time (UTC)</th>
+                                <th>Service</th>
+                                <th>Level</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs_body">
+                            {% for log in logs %}
+                            <tr class="{{ log.level }}">
+                                <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                <td>{{ log.service_name }}</td>
+                                <td>{{ log.level }}</td>
+                                <td>{{ log.message }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-resource">
+                <h3>Resource monitoring</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="label">Current CPU</div>
+                        <div id="cpu_current" class="value">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">5-min avg CPU</div>
+                        <div id="cpu_5min" class="value">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Current Memory</div>
+                        <div id="mem_current" class="value">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">5-min avg Memory</div>
+                        <div id="mem_5min" class="value">-</div>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <h4>Top processes (current)</h4>
+                    <table id="procs_current_table">
+                        <thead>
+                            <tr><th>PID</th><th>Name</th><th>CPU</th><th>Mem</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="table-wrap">
+                    <h4>Top processes (5-min avg)</h4>
+                    <table id="procs_5min_table">
+                        <thead>
+                            <tr><th>PID</th><th>Name</th><th>CPU</th><th>Mem</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-processes">
+                <h3>Processes</h3>
+                <div class="table-wrap">
+                    <table id="processes_table">
+                        <thead>
+                            <tr><th>PID</th><th>Name</th><th>CPU</th><th>Memory</th><th>Command</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-network">
+                <h3>Network monitoring</h3>
+
+                <div class="network-grid">
+                    <div class="network-card">
+                        <div class="label">Site status</div>
+                        <div id="site_status_value" class="value">-</div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Site latency</div>
+                        <div id="site_latency_value" class="value">-</div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Download speed</div>
+                        <div id="speed_value" class="value">-</div>
+                    </div>
+                </div>
+
+                <form id="network_form" class="network-form">
+                    <input id="network_name" type="text" placeholder="Name (e.g. Router)" maxlength="128" required>
+                    <input id="network_ip" type="text" placeholder="IP or hostname (e.g. 8.8.8.8)" maxlength="64" required>
+                    <button type="submit">Add target</button>
+                </form>
+
+                <div id="network_targets" class="target-list"></div>
+            </section>
+
+            <section class="panel" id="panel-kubernetes">
+                <h3>Kubernetes</h3>
+                <div id="kubernetes_warning" class="warning-box" style="display:none;"></div>
+                <div class="network-grid">
+                    <div class="network-card">
+                        <div class="label">Mode</div>
+                        <div id="kubernetes_mode" class="value">-</div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Nodes</div>
+                        <div id="kubernetes_nodes" class="value">-</div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Pods</div>
+                        <div id="kubernetes_pods" class="value">-</div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Ready</div>
+                        <div id="kubernetes_ready" class="value">-</div>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <h4>Pod overview</h4>
+                    <table id="kubernetes_pods_table">
+                        <thead>
+                            <tr><th>Name</th><th>Namespace</th><th>Status</th><th>Ready</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-docker">
+                <h3>Docker</h3>
+                <div id="docker_warning" class="warning-box" style="display:none;"></div>
+                <div class="network-grid">
+                    <div class="network-card">
+                        <div class="label">Mode</div>
+                        <div id="docker_mode" class="value">-</div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Running</div>
+                        <div id="docker_running" class="value">-</div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Stopped</div>
+                        <div id="docker_stopped" class="value">-</div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Volumes</div>
+                        <div id="docker_volumes" class="value">-</div>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <h4>Container overview</h4>
+                    <table id="docker_table">
+                        <thead>
+                            <tr><th>Name</th><th>Image</th><th>Status</th><th>Ports</th><th>Volumes</th><th>CPU</th><th>Memory</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-settings">
+                <h3>Settings</h3>
+                <div class="network-grid">
+                    <div class="network-card">
+                        <div class="label">Refresh Interval</div>
+                        <div class="value"><input id="setting_refresh_interval" type="number" min="5" max="300" value="10"></div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Network Refresh</div>
+                        <div class="value"><input id="setting_network_refresh" type="number" min="5" max="300" value="20"></div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Kubernetes Refresh</div>
+                        <div class="value"><input id="setting_kubernetes_refresh" type="number" min="5" max="300" value="30"></div>
+                    </div>
+                    <div class="network-card">
+                        <div class="label">Docker Refresh</div>
+                        <div class="value"><input id="setting_docker_refresh" type="number" min="5" max="300" value="30"></div>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Feature</th><th>Enabled</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Show emulated data when unavailable</td><td><input id="setting_show_emulated" type="checkbox" checked></td></tr>
+                            <tr><td>Enable alerts</td><td><input id="setting_enable_alerts" type="checkbox" checked></td></tr>
+                            <tr><td>Enable network checks</td><td><input id="setting_enable_network_checks" type="checkbox" checked></td></tr>
+                            <tr><td>Enable Kubernetes checks</td><td><input id="setting_enable_kubernetes_checks" type="checkbox" checked></td></tr>
+                            <tr><td>Enable Docker checks</td><td><input id="setting_enable_docker_checks" type="checkbox" checked></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin-top: 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                    <button id="save_settings" type="button" style="padding: 10px 16px; background: linear-gradient(135deg, var(--accent-strong), #77a8ff); color: white; border:none; border-radius:10px; cursor:pointer;">Save settings</button>
+                    <span id="settings_status" class="muted">No changes saved yet.</span>
+                </div>
+            </section>
+        </main>
     </div>
 
     <script>
+        const menuButtons = document.querySelectorAll('.menu-item');
+        const panels = document.querySelectorAll('.panel');
+
+        function showPanel(name) {
+            menuButtons.forEach((button) => {
+                const active = button.dataset.menu === name;
+                button.classList.toggle('active', active);
+            });
+            panels.forEach((panel) => {
+                panel.classList.toggle('active', panel.id === `panel-${name}`);
+            });
+        }
+
+        menuButtons.forEach((button) => {
+            if (!button.disabled) {
+                button.addEventListener('click', () => showPanel(button.dataset.menu));
+            }
+        });
+
         function renderProcTable(tableId, procs) {
             const tb = document.querySelector(tableId + ' tbody');
             if (!tb) return;
             tb.innerHTML = '';
             if (!procs || !procs.length) {
                 const tr = document.createElement('tr');
-                const td = document.createElement('td'); td.colSpan = 4; td.className = 'muted'; td.textContent = 'no data';
-                tr.appendChild(td); tb.appendChild(tr); return;
-            }
-            for (const p of procs.slice(0,10)) {
-                const tr = document.createElement('tr');
-                const pid = document.createElement('td'); pid.textContent = p.pid; tr.appendChild(pid);
-                const name = document.createElement('td'); name.textContent = p.name || ''; tr.appendChild(name);
-                const cpu = document.createElement('td'); cpu.textContent = (p.cpu_percent !== undefined) ? p.cpu_percent + '%' : '-'; tr.appendChild(cpu);
-                const mem = document.createElement('td'); mem.textContent = (p.memory_percent !== undefined) ? p.memory_percent + '%' : '-'; tr.appendChild(mem);
+                const td = document.createElement('td');
+                td.colSpan = 4;
+                td.className = 'muted';
+                td.textContent = 'no data';
+                tr.appendChild(td);
                 tb.appendChild(tr);
+                return;
+            }
+
+            for (const p of procs.slice(0, 10)) {
+                const tr = document.createElement('tr');
+                const pid = document.createElement('td'); pid.textContent = p.pid ?? '-'; tr.appendChild(pid);
+                const name = document.createElement('td'); name.textContent = p.name || '-'; tr.appendChild(name);
+                const cpu = document.createElement('td'); cpu.textContent = (p.cpu_percent !== undefined) ? `${p.cpu_percent}%` : '-'; tr.appendChild(cpu);
+                const mem = document.createElement('td'); mem.textContent = (p.memory_percent !== undefined) ? `${p.memory_percent}%` : '-'; tr.appendChild(mem);
+                tb.appendChild(tr);
+            }
+        }
+
+        function renderProcessTable(procs) {
+            const tb = document.querySelector('#processes_table tbody');
+            if (!tb) return;
+            tb.innerHTML = '';
+            if (!procs || !procs.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.className = 'muted';
+                td.textContent = 'no data';
+                tr.appendChild(td);
+                tb.appendChild(tr);
+                return;
+            }
+
+            for (const p of procs.slice(0, 15)) {
+                const tr = document.createElement('tr');
+                const pid = document.createElement('td'); pid.textContent = p.pid ?? '-'; tr.appendChild(pid);
+                const name = document.createElement('td'); name.textContent = p.name || '-'; tr.appendChild(name);
+                const cpu = document.createElement('td'); cpu.textContent = (p.cpu_percent !== undefined) ? `${p.cpu_percent}%` : '-'; tr.appendChild(cpu);
+                const mem = document.createElement('td'); mem.textContent = (p.memory_percent !== undefined) ? `${p.memory_percent}%` : '-'; tr.appendChild(mem);
+                const cmd = document.createElement('td'); cmd.textContent = p.cmdline || p.name || '-'; tr.appendChild(cmd);
+                tb.appendChild(tr);
+            }
+        }
+
+        function renderNetworkTargets(targets) {
+            const container = document.getElementById('network_targets');
+            if (!container) return;
+            if (!targets || !targets.length) {
+                container.innerHTML = '<div class="status-row"><div class="muted">No monitored targets yet.</div></div>';
+                return;
+            }
+
+            container.innerHTML = targets.map((target) => {
+                const status = String(target.status || 'unknown').toLowerCase();
+                const lastChecked = target.last_checked ? new Date(target.last_checked).toLocaleString() : 'Not checked';
+                return `
+                    <div class="status-row">
+                        <div>
+                            <strong>${target.name}</strong><br>
+                            <span class="muted">${target.ip}</span><br>
+                            <span class="muted">Last checked: ${lastChecked}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-end;">
+                            <span class="status-pill"><span class="status-dot ${status}"></span>${status === 'up' ? 'Up' : status === 'down' ? 'Down' : 'Unknown'}</span>
+                            <button class="ping-btn" data-id="${target.id}" type="button">Ping</button>
+                            <button class="delete-btn" data-id="${target.id}" type="button">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.querySelectorAll('.ping-btn').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const id = button.dataset.id;
+                    const response = await fetch(`/api/network/targets/${id}/check`, { method: 'POST', credentials: 'same-origin' });
+                    if (response.ok) {
+                        await loadNetworkStatus();
+                    }
+                });
+            });
+
+            document.querySelectorAll('.delete-btn').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const id = button.dataset.id;
+                    const response = await fetch(`/api/network/targets/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+                    if (response.ok) {
+                        await loadNetworkStatus();
+                    }
+                });
+            });
+        }
+
+        function renderKubernetesTable(pods) {
+            const tb = document.querySelector('#kubernetes_pods_table tbody');
+            if (!tb) return;
+            tb.innerHTML = '';
+            if (!pods || !pods.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 4;
+                td.className = 'muted';
+                td.textContent = 'no data';
+                tr.appendChild(td);
+                tb.appendChild(tr);
+                return;
+            }
+
+            for (const pod of pods.slice(0, 12)) {
+                const tr = document.createElement('tr');
+                const name = document.createElement('td'); name.textContent = pod.name || '-'; tr.appendChild(name);
+                const ns = document.createElement('td'); ns.textContent = pod.namespace || '-'; tr.appendChild(ns);
+                const status = document.createElement('td'); status.textContent = pod.status || '-'; tr.appendChild(status);
+                const ready = document.createElement('td'); ready.textContent = pod.ready || '-'; tr.appendChild(ready);
+                tb.appendChild(tr);
+            }
+        }
+
+        async function loadKubernetesStatus() {
+            try {
+                const response = await fetch('/api/kubernetes', { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('failed to fetch kubernetes status');
+                const data = await response.json();
+
+                const warning = document.getElementById('kubernetes_warning');
+                if (data.warning) {
+                    warning.style.display = 'flex';
+                    warning.innerHTML = `<strong>Warning:</strong> ${data.warning}`;
+                } else {
+                    warning.style.display = 'none';
+                    warning.innerHTML = '';
+                }
+
+                document.getElementById('kubernetes_mode').textContent = data.mode === 'live' ? 'Live' : 'Emulated';
+                document.getElementById('kubernetes_nodes').textContent = data.node_count ?? '-';
+                document.getElementById('kubernetes_pods').textContent = data.pod_count ?? '-';
+                document.getElementById('kubernetes_ready').textContent = data.ready_pods ?? '-';
+                renderKubernetesTable(data.pods_sample || []);
+            } catch (error) {
+                console.error('kubernetes refresh error', error);
+            }
+        }
+
+        function renderDockerTable(containers) {
+            const tb = document.querySelector('#docker_table tbody');
+            if (!tb) return;
+            tb.innerHTML = '';
+            if (!containers || !containers.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 7;
+                td.className = 'muted';
+                td.textContent = 'no data';
+                tr.appendChild(td);
+                tb.appendChild(tr);
+                return;
+            }
+
+            for (const container of containers.slice(0, 20)) {
+                const tr = document.createElement('tr');
+                const name = document.createElement('td'); name.textContent = container.name || '-'; tr.appendChild(name);
+                const image = document.createElement('td'); image.textContent = container.image || '-'; tr.appendChild(image);
+                const status = document.createElement('td'); status.textContent = container.status || container.state || '-'; tr.appendChild(status);
+                const ports = document.createElement('td'); ports.textContent = (container.ports && container.ports.length) ? container.ports.join(', ') : '—'; tr.appendChild(ports);
+                const volumes = document.createElement('td'); volumes.textContent = (container.volumes && container.volumes.length) ? container.volumes.join(', ') : '—'; tr.appendChild(volumes);
+                const cpu = document.createElement('td'); cpu.textContent = container.cpu || '-'; tr.appendChild(cpu);
+                const mem = document.createElement('td'); mem.textContent = container.memory || '-'; tr.appendChild(mem);
+                tb.appendChild(tr);
+            }
+        }
+
+        async function loadDockerStatus() {
+            try {
+                const response = await fetch('/api/docker', { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('failed to fetch docker status');
+                const data = await response.json();
+
+                const warning = document.getElementById('docker_warning');
+                if (data.warning) {
+                    warning.style.display = 'flex';
+                    warning.innerHTML = `<strong>Warning:</strong> ${data.warning}`;
+                } else {
+                    warning.style.display = 'none';
+                    warning.innerHTML = '';
+                }
+
+                document.getElementById('docker_mode').textContent = data.mode === 'live' ? 'Live' : 'Emulated';
+                document.getElementById('docker_running').textContent = data.running_containers ?? '-';
+                document.getElementById('docker_stopped').textContent = data.stopped_containers ?? '-';
+                document.getElementById('docker_volumes').textContent = data.total_volumes ?? '-';
+                renderDockerTable(data.containers || []);
+            } catch (error) {
+                console.error('docker refresh error', error);
+            }
+        }
+
+        async function loadNetworkStatus() {
+            try {
+                const response = await fetch('/api/network', { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('failed to fetch network status');
+                const data = await response.json();
+
+                const site = data.site || {};
+                const speed = data.speed || {};
+                const statusText = site.status === 'up' ? 'Online' : 'Offline';
+                document.getElementById('site_status_value').textContent = statusText;
+                document.getElementById('site_latency_value').textContent = site.latency_ms !== null ? `${site.latency_ms.toFixed(0)} ms` : 'N/A';
+                document.getElementById('speed_value').textContent = speed.download_mbps !== null ? `${speed.download_mbps.toFixed(2)} Mbps` : 'N/A';
+
+                renderNetworkTargets(data.targets);
+            } catch (error) {
+                console.error('network refresh error', error);
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings', { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('failed to fetch settings');
+                const settings = await response.json();
+                document.getElementById('setting_refresh_interval').value = settings.refresh_interval ?? 10;
+                document.getElementById('setting_network_refresh').value = settings.network_refresh_interval ?? 20;
+                document.getElementById('setting_kubernetes_refresh').value = settings.kubernetes_refresh_interval ?? 30;
+                document.getElementById('setting_docker_refresh').value = settings.docker_refresh_interval ?? 30;
+                document.getElementById('setting_show_emulated').checked = !!settings.show_emulated_data;
+                document.getElementById('setting_enable_alerts').checked = !!settings.enable_alerts;
+                document.getElementById('setting_enable_network_checks').checked = !!settings.enable_network_checks;
+                document.getElementById('setting_enable_kubernetes_checks').checked = !!settings.enable_kubernetes_checks;
+                document.getElementById('setting_enable_docker_checks').checked = !!settings.enable_docker_checks;
+            } catch (error) {
+                console.error('settings load error', error);
+            }
+        }
+
+        async function saveSettings() {
+            const payload = {
+                refresh_interval: Number(document.getElementById('setting_refresh_interval').value || 10),
+                network_refresh_interval: Number(document.getElementById('setting_network_refresh').value || 20),
+                kubernetes_refresh_interval: Number(document.getElementById('setting_kubernetes_refresh').value || 30),
+                docker_refresh_interval: Number(document.getElementById('setting_docker_refresh').value || 30),
+                show_emulated_data: document.getElementById('setting_show_emulated').checked,
+                enable_alerts: document.getElementById('setting_enable_alerts').checked,
+                enable_network_checks: document.getElementById('setting_enable_network_checks').checked,
+                enable_kubernetes_checks: document.getElementById('setting_enable_kubernetes_checks').checked,
+                enable_docker_checks: document.getElementById('setting_enable_docker_checks').checked,
+            };
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) throw new Error('failed to save settings');
+                const status = document.getElementById('settings_status');
+                status.textContent = 'Settings saved successfully.';
+                setTimeout(() => {
+                    status.textContent = 'No changes saved yet.';
+                }, 2000);
+            } catch (error) {
+                console.error('settings save error', error);
             }
         }
 
@@ -104,32 +803,36 @@
                 if (!res.ok) throw new Error('failed to fetch');
                 const data = await res.json();
                 const host = data.metrics && data.metrics.host;
+
                 if (host) {
-                    // prefer explicit top lists if provided
                     const cur = host.current || {};
                     const avg = host.avg_5min || {};
-                    document.getElementById('cpu_current').textContent = (cur.cpu_percent !== undefined) ? cur.cpu_percent + '%' : '-';
-                    document.getElementById('mem_current').textContent = (cur.memory_percent !== undefined) ? cur.memory_percent + '%' : '-';
-                    document.getElementById('cpu_5min').textContent = (avg.cpu_percent !== undefined) ? avg.cpu_percent + '%' : '-';
-                    document.getElementById('mem_5min').textContent = (avg.memory_percent !== undefined) ? avg.memory_percent + '%' : '-';
-                    document.getElementById('last_updated').textContent = new Date((host.current && host.current.timestamp) ? host.current.timestamp * 1000 : Date.now()).toLocaleString();
+                    document.getElementById('cpu_current').textContent = (cur.cpu_percent !== undefined) ? `${cur.cpu_percent}%` : '-';
+                    document.getElementById('mem_current').textContent = (cur.memory_percent !== undefined) ? `${cur.memory_percent}%` : '-';
+                    document.getElementById('cpu_5min').textContent = (avg.cpu_percent !== undefined) ? `${avg.cpu_percent}%` : '-';
+                    document.getElementById('mem_5min').textContent = (avg.memory_percent !== undefined) ? `${avg.memory_percent}%` : '-';
+
+                    const ts = (host.current && host.current.timestamp) ? host.current.timestamp * 1000 : Date.now();
+                    document.getElementById('last_updated').textContent = `Last updated: ${new Date(ts).toLocaleString()}`;
 
                     const procsCur = host.top_current || (host.current && host.current.procs) || [];
                     const procsAvg = host.top_5min || (host.avg_5min && host.avg_5min.procs) || [];
                     renderProcTable('#procs_current_table', procsCur);
                     renderProcTable('#procs_5min_table', procsAvg);
+                    renderProcessTable(procsCur);
                 }
 
-                // update logs table
                 const logsBody = document.getElementById('logs_body');
                 if (data.logs && data.logs.length) {
                     logsBody.innerHTML = '';
                     for (const log of data.logs) {
                         const tr = document.createElement('tr');
                         tr.className = log.level || '';
+
                         const timeTd = document.createElement('td');
-                        timeTd.textContent = (new Date(log.timestamp)).toISOString().replace('T',' ').split('.')[0];
+                        timeTd.textContent = (new Date(log.timestamp)).toISOString().replace('T', ' ').split('.')[0];
                         tr.appendChild(timeTd);
+
                         const svc = document.createElement('td'); svc.textContent = log.service; tr.appendChild(svc);
                         const lvl = document.createElement('td'); lvl.textContent = log.level; tr.appendChild(lvl);
                         const msg = document.createElement('td'); msg.textContent = log.message; tr.appendChild(msg);
@@ -141,9 +844,37 @@
             }
         }
 
-        // initial refresh and then every 10s
+        document.getElementById('network_form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const name = document.getElementById('network_name').value.trim();
+            const ip = document.getElementById('network_ip').value.trim();
+
+            if (!name || !ip) return;
+
+            const response = await fetch('/api/network/targets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ name, ip })
+            });
+
+            if (response.ok) {
+                document.getElementById('network_form').reset();
+                await loadNetworkStatus();
+            }
+        });
+
+        document.getElementById('save_settings').addEventListener('click', saveSettings);
+
+        loadSettings();
         refresh();
+        loadNetworkStatus();
+        loadKubernetesStatus();
+        loadDockerStatus();
         setInterval(refresh, 10000);
+        setInterval(loadNetworkStatus, 20000);
+        setInterval(loadKubernetesStatus, 30000);
+        setInterval(loadDockerStatus, 30000);
     </script>
 </body>
 </html>
